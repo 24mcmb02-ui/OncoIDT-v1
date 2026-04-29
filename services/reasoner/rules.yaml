@@ -1,0 +1,47 @@
+# OncoIDT Clinical Rule Engine — Soft Rules Configuration
+#
+# Hard rules are enforced in code and are NOT configurable here:
+#   - SIRS >= 2 criteria  → infection_risk floor >= 0.70
+#   - NEWS2 >= 7          → deterioration_risk floor >= 0.80
+#   - ANC < 0.5 × 10⁹/L AND temp > 38.3°C → infection_risk floor >= 0.85
+#
+# Soft rules below are configurable weighted blends.
+# Each rule contributes a delta to the named score when its condition is met.
+# Set enabled: false to disable a rule without removing it.
+
+soft_rules:
+  - rule_id: crp_elevation
+    description: "CRP > 50 mg/L suggests systemic inflammation"
+    target_score: infection_risk
+    condition_field: crp_mg_l
+    condition_operator: ">"
+    condition_threshold: 50.0
+    score_delta: 0.10
+    enabled: true
+
+  - rule_id: procalcitonin_elevation
+    description: "Procalcitonin > 0.5 μg/L suggests bacterial infection"
+    target_score: infection_risk
+    condition_field: procalcitonin_ug_l
+    condition_operator: ">"
+    condition_threshold: 0.5
+    score_delta: 0.15
+    enabled: true
+
+  - rule_id: anc_low_soft
+    description: "ANC < 1.0 × 10⁹/L (but >= 0.5) — moderate neutropenia"
+    target_score: infection_risk
+    condition_field: anc
+    condition_operator: "<"
+    condition_threshold: 1.0
+    score_delta: 0.10
+    enabled: true
+
+  - rule_id: tachycardia_soft
+    description: "HR > 100 bpm — tachycardia as deterioration signal"
+    target_score: deterioration_risk
+    condition_field: heart_rate_bpm
+    condition_operator: ">"
+    condition_threshold: 100.0
+    score_delta: 0.05
+    enabled: true

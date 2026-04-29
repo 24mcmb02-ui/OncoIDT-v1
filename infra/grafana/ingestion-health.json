@@ -1,0 +1,76 @@
+{
+  "uid": "ingestion-health",
+  "title": "Data Ingestion Health",
+  "schemaVersion": 38,
+  "version": 1,
+  "time": { "from": "now-3h", "to": "now" },
+  "refresh": "30s",
+  "tags": ["oncoidt", "ingestion"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Ingestion Rate (req/s)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=\"ingestion-service\"}[5m]))",
+          "legendFormat": "Ingestion Rate",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Dedup Rate",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=\"ingestion-service\",status=\"200\"}[5m])) / sum(rate(http_requests_total{job=\"ingestion-service\"}[5m]))",
+          "legendFormat": "Dedup Rate",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit" }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Source Availability Alerts",
+      "gridPos": { "x": 12, "y": 4, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(onco_alert_generated_total{alert_type=\"source_unavailability\"}[1h]))",
+          "legendFormat": "Source Unavailability Alerts",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]
+        }
+      }
+    }
+  ]
+}

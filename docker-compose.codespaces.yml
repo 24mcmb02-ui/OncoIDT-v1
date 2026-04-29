@@ -1,0 +1,485 @@
+# =============================================================================
+# OncoIDT — Codespaces / Low-RAM docker-compose
+#
+# Differences from docker-compose.yml:
+#   1. Neo4j: removed APOC/GDS plugin auto-download (causes timeout in Codespaces)
+#             reduced heap to 256m/384m, pagecache to 128m
+#   2. PostgreSQL: pinned image tag (timescale/timescaledb:2.15.3-pg16)
+#   3. Redis: maxmemory reduced to 256mb
+#   4. MLflow: fixed healthcheck (uses / not /health)
+#   5. All app services: added depends_on mlflow so they don't race
+#   6. Frontend: passes --host 0.0.0.0 so Codespaces can forward the port
+#   7. Prometheus/Grafana: optional, can be skipped with --scale flag
+#
+# Usage in Codespaces:
+#   docker compose -f docker-compose.codespaces.yml up --build
+#
+# Skip monitoring (saves ~300MB RAM):
+#   docker compose -f docker-compose.codespaces.yml up --build \
+#     --scale prometheus=0 --scale grafana=0
+# =============================================================================
+
+x-app-common: &app-common
+  restart: unless-stopped
+  env_file: .env
+  networks:
+    - oncoidt
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+x-app-env: &app-env
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: oncoidt
+  POSTGRES_USER: oncoidt
+  POSTGRES_PASSWORD: oncoidt_secret
+  REDIS_URL: redis://redis:6379/0
+  NEO4J_URI: bolt://neo4j:7687
+  NEO4J_USER: neo4j
+  NEO4J_PASSWORD: neo4j_secret
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  JWT_SECRET: CHANGE_ME_IN_PRODUCTION_USE_STRONG_SECRET
+  LOG_LEVEL: INFO
+
+networks:
+  oncoidt:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  neo4j_data:
+  neo4j_logs:
+  redis_data:
+  mlflow_data:
+  grafana_data:
+  prometheus_data:
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # 1. PostgreSQL + TimescaleDB  (pinned tag — avoids "latest" breakage)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: timescale/timescaledb:2.15.3-pg16
+    container_name: oncoidt-postgres
+    restart: unless-stopped
+    networks:
+      - oncoidt
+    environment:
+      POSTGRES_DB: oncoidt
+      POSTGRES_USER: oncoidt
+      POSTGRES_PASSWORD: oncoidt_secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/init_db.sql:/docker-entrypoint-initdb.d/01_init_db.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oncoidt -d oncoidt"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  # ---------------------------------------------------------------------------
+  # 2. Neo4j  — NO plugin auto-download (fixes Codespaces timeout)
+  #             Reduced memory for 16GB Codespace
+  # ---------------------------------------------------------------------------
+  neo4j:
+    image: neo4j:5.20-community
+    container_name: oncoidt-neo4j
+    restart: unless-stopped
+    networks:
+      - oncoidt
+    environment:
+      NEO4J_AUTH: neo4j/neo4j_secret
+      # REMOVED: NEO4J_PLUGINS — downloading APOC/GDS at startup times out in Codespaces
+      # The graph service will work without them for basic queries.
+      # To enable plugins later, download the JARs manually and mount them.
+      NEO4J_server_memory_heap_initial__size: "128m"
+      NEO4J_server_memory_heap_max__size: "384m"
+      NEO4J_server_memory_pagecache__size: "128m"
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*,gds.*"
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    healthcheck:
+      # Use cypher-shell instead of wget — more reliable in Codespaces
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p neo4j_secret 'RETURN 1' || exit 1"]
+      interval: 20s
+      timeout: 15s
+      retries: 10
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # 3. Redis  — reduced maxmemory for Codespaces
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: oncoidt-redis
+    restart: unless-stopped
+    networks:
+      - oncoidt
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # 4. MLflow  — fixed healthcheck (MLflow < 2.14 has no /health endpoint)
+  # ---------------------------------------------------------------------------
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.0
+    container_name: oncoidt-mlflow
+    restart: unless-stopped
+    networks:
+      - oncoidt
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://oncoidt:oncoidt_secret@postgres:5432/oncoidt
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: /mlflow/artifacts
+    volumes:
+      - mlflow_data:/mlflow/artifacts
+    ports:
+      - "5000:5000"
+    command: >
+      mlflow server
+        --backend-store-uri postgresql+psycopg2://oncoidt:oncoidt_secret@postgres:5432/oncoidt
+        --default-artifact-root /mlflow/artifacts
+        --host 0.0.0.0
+        --port 5000
+    healthcheck:
+      # MLflow v2.13 serves / (root) not /health
+      test: ["CMD-SHELL", "curl -sf http://localhost:5000/ || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # 5. Ingestion Service (port 8001)
+  # ---------------------------------------------------------------------------
+  ingestion-service:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: services/ingestion/Dockerfile
+    container_name: oncoidt-ingestion
+    environment:
+      <<: *app-env
+      SERVICE_NAME: ingestion-service
+      INGESTION_SERVICE_PORT: "8001"
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # 6. Graph Service (port 8002)
+  # ---------------------------------------------------------------------------
+  graph-service:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: services/graph/Dockerfile
+    container_name: oncoidt-graph
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      SERVICE_NAME: graph-service
+      GRAPH_SERVICE_PORT: "8002"
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8002/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # 7. Inference Service (port 8003)
+  # ---------------------------------------------------------------------------
+  inference-service:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: services/inference/Dockerfile
+    container_name: oncoidt-inference
+    environment:
+      <<: *app-env
+      SERVICE_NAME: inference-service
+      INFERENCE_SERVICE_PORT: "8003"
+    ports:
+      - "8003:8003"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8003/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # 8. Reasoner Service (port 8004)
+  # ---------------------------------------------------------------------------
+  reasoner-service:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: services/reasoner/Dockerfile
+    container_name: oncoidt-reasoner
+    environment:
+      <<: *app-env
+      SERVICE_NAME: reasoner-service
+      REASONER_SERVICE_PORT: "8004"
+    ports:
+      - "8004:8004"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8004/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # 9. Alert Service (port 8005)
+  # ---------------------------------------------------------------------------
+  alert-service:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: services/alerts/Dockerfile
+    container_name: oncoidt-alerts
+    environment:
+      <<: *app-env
+      SERVICE_NAME: alert-service
+      ALERT_SERVICE_PORT: "8005"
+    ports:
+      - "8005:8005"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8005/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # 10. Explainability Service (port 8006)
+  # ---------------------------------------------------------------------------
+  explainability-service:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: services/explainability/Dockerfile
+    container_name: oncoidt-explainability
+    environment:
+      <<: *app-env
+      SERVICE_NAME: explainability-service
+      EXPLAINABILITY_SERVICE_PORT: "8006"
+    ports:
+      - "8006:8006"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8006/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # 11. Simulation Service (port 8007)
+  # ---------------------------------------------------------------------------
+  simulation-service:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: services/simulation/Dockerfile
+    container_name: oncoidt-simulation
+    environment:
+      <<: *app-env
+      SERVICE_NAME: simulation-service
+      SIMULATION_SERVICE_PORT: "8007"
+    ports:
+      - "8007:8007"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8007/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # 12. Training Service (port 8008)
+  # ---------------------------------------------------------------------------
+  training-service:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: services/training/Dockerfile
+    container_name: oncoidt-training
+    environment:
+      <<: *app-env
+      SERVICE_NAME: training-service
+      TRAINING_SERVICE_PORT: "8008"
+    ports:
+      - "8008:8008"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8008/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # 13. Feature Store Service (port 8009)
+  # ---------------------------------------------------------------------------
+  feature-store-service:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: services/feature_store/Dockerfile
+    container_name: oncoidt-feature-store
+    environment:
+      <<: *app-env
+      SERVICE_NAME: feature-store-service
+      FEATURE_STORE_SERVICE_PORT: "8009"
+    ports:
+      - "8009:8009"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8009/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # 14. API Gateway (port 8000)
+  # ---------------------------------------------------------------------------
+  api-gateway:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: oncoidt-api-gateway
+    environment:
+      <<: *app-env
+      SERVICE_NAME: api-gateway
+      API_GATEWAY_PORT: "8000"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # 15. WebSocket Hub (port 8010)
+  # ---------------------------------------------------------------------------
+  websocket-hub:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: services/websocket-hub/Dockerfile
+    container_name: oncoidt-websocket-hub
+    environment:
+      <<: *app-env
+      SERVICE_NAME: websocket-hub
+      WEBSOCKET_HUB_PORT: "8010"
+    ports:
+      - "8010:8010"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8010/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # 16. Frontend (port 3000)
+  #     Uses dev server so Vite proxy handles /api → api-gateway
+  #     --host 0.0.0.0 is required for Codespaces port forwarding
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: oncoidt-frontend
+    restart: unless-stopped
+    networks:
+      - oncoidt
+    environment:
+      # Vite proxy handles /api → api-gateway internally (no CORS issues)
+      VITE_API_BASE_URL: http://localhost:8000
+      VITE_WS_BASE_URL: ws://localhost:8010
+    ports:
+      - "3000:3000"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+      websocket-hub:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # 17. Prometheus  (optional — skip with --scale prometheus=0)
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: oncoidt-prometheus
+    restart: unless-stopped
+    networks:
+      - oncoidt
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"
+
+  # ---------------------------------------------------------------------------
+  # 18. Grafana  (optional — skip with --scale grafana=0)
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: oncoidt-grafana
+    restart: unless-stopped
+    networks:
+      - oncoidt
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: oncoidt_grafana
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus

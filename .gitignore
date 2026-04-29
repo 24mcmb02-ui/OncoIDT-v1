@@ -1,0 +1,125 @@
+# ============================================================
+# Node / Frontend
+# ============================================================
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+*.local
+
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env.local
+
+# ============================================================
+# Environment / Secrets — NEVER commit these
+# ============================================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+infra/certs/*.crt
+infra/certs/*.key
+infra/certs/*.pem
+
+# ============================================================
+# ML / Training artifacts
+# ============================================================
+mlruns/
+mlflow_artifacts/
+mlflow.db
+*.pt
+*.pth
+*.pkl
+*.joblib
+*.onnx
+/models/
+checkpoints/
+
+# ============================================================
+# Results / Generated figures (optional — remove if you want
+# to commit your result PNGs to show the professor)
+# ============================================================
+# results/
+# Uncomment the line above if you don't want to commit figures.
+# For now we keep results/ tracked so your professor can see them.
+
+# ============================================================
+# Databases / Data files
+# ============================================================
+*.db
+*.sqlite
+*.sqlite3
+*.csv.gz
+*.parquet
+ground_truth_labels.csv
+
+# ============================================================
+# Docker / Infra
+# ============================================================
+postgres_data/
+neo4j_data/
+neo4j_logs/
+redis_data/
+grafana_data/
+prometheus_data/
+
+# ============================================================
+# Hypothesis / Testing
+# ============================================================
+.hypothesis/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# ============================================================
+# Kiro IDE
+# ============================================================
+.kiro/
+
+# ============================================================
+# IDE / OS
+# ============================================================
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================
+# Logs
+# ============================================================
+*.log
+logs/

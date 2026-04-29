@@ -1,0 +1,92 @@
+{
+  "name": "OncoIDT Full Stack",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+
+  // Request a machine with enough RAM for all 18 containers.
+  // In Codespaces UI: choose 4-core / 16GB or 8-core / 32GB.
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "32gb"
+  },
+
+  "features": {
+    // Docker-in-Docker so we can run docker compose inside the codespace
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "enableNonRootDocker": "true",
+      "moby": "true"
+    },
+    // Node.js for the frontend
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    // Python for running scripts / tests
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    }
+  },
+
+  // Auto-forward all service ports so they appear in the Ports tab
+  "forwardPorts": [
+    3000,   // Frontend
+    8000,   // API Gateway
+    8001,   // Ingestion Service
+    8002,   // Graph Service
+    8003,   // Inference Service
+    8004,   // Reasoner Service
+    8005,   // Alert Service
+    8006,   // Explainability Service
+    8007,   // Simulation Service
+    8008,   // Training Service
+    8009,   // Feature Store Service
+    8010,   // WebSocket Hub
+    5000,   // MLflow
+    5432,   // PostgreSQL
+    6379,   // Redis
+    7474,   // Neo4j Browser
+    7687,   // Neo4j Bolt
+    9090,   // Prometheus
+    3001    // Grafana
+  ],
+
+  // Label the ports so they're easy to identify in the Ports tab
+  "portsAttributes": {
+    "3000":  { "label": "Frontend",             "onAutoForward": "notify" },
+    "8000":  { "label": "API Gateway",          "onAutoForward": "silent" },
+    "8001":  { "label": "Ingestion Service",    "onAutoForward": "silent" },
+    "8002":  { "label": "Graph Service",        "onAutoForward": "silent" },
+    "8003":  { "label": "Inference Service",    "onAutoForward": "silent" },
+    "8004":  { "label": "Reasoner Service",     "onAutoForward": "silent" },
+    "8005":  { "label": "Alert Service",        "onAutoForward": "silent" },
+    "8006":  { "label": "Explainability",       "onAutoForward": "silent" },
+    "8007":  { "label": "Simulation Service",   "onAutoForward": "silent" },
+    "8008":  { "label": "Training Service",     "onAutoForward": "silent" },
+    "8009":  { "label": "Feature Store",        "onAutoForward": "silent" },
+    "8010":  { "label": "WebSocket Hub",        "onAutoForward": "silent" },
+    "5000":  { "label": "MLflow",               "onAutoForward": "silent" },
+    "5432":  { "label": "PostgreSQL",           "onAutoForward": "silent" },
+    "6379":  { "label": "Redis",                "onAutoForward": "silent" },
+    "7474":  { "label": "Neo4j Browser",        "onAutoForward": "notify" },
+    "7687":  { "label": "Neo4j Bolt",           "onAutoForward": "silent" },
+    "9090":  { "label": "Prometheus",           "onAutoForward": "silent" },
+    "3001":  { "label": "Grafana",              "onAutoForward": "notify" }
+  },
+
+  // Run after the container is created
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-docker",
+        "ms-python.python",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

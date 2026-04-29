@@ -1,0 +1,16 @@
+{
+  "8310-5":  {"type": "vital", "field": "temperature_c",        "unit": "Cel"},
+  "8867-4":  {"type": "vital", "field": "heart_rate_bpm",       "unit": "/min"},
+  "9279-1":  {"type": "vital", "field": "respiratory_rate_rpm", "unit": "/min"},
+  "8480-6":  {"type": "vital", "field": "sbp_mmhg",             "unit": "mm[Hg]"},
+  "8462-4":  {"type": "vital", "field": "dbp_mmhg",             "unit": "mm[Hg]"},
+  "59408-5": {"type": "vital", "field": "spo2_pct",             "unit": "%"},
+  "9269-2":  {"type": "vital", "field": "gcs",                  "unit": "{score}"},
+  "26499-4": {"type": "lab",   "field": "anc",                  "unit": "10*9/L"},
+  "6690-2":  {"type": "lab",   "field": "wbc",                  "unit": "10*9/L"},
+  "731-0":   {"type": "lab",   "field": "lymphocytes",          "unit": "10*9/L"},
+  "1988-5":  {"type": "lab",   "field": "crp_mg_l",             "unit": "mg/L"},
+  "75241-0": {"type": "lab",   "field": "procalcitonin_ug_l",   "unit": "ug/L"},
+  "2524-7":  {"type": "lab",   "field": "lactate_mmol_l",       "unit": "mmol/L"},
+  "2160-0":  {"type": "lab",   "field": "creatinine_umol_l",    "unit": "umol/L"}
+}

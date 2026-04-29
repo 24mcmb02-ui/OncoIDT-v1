@@ -1,0 +1,244 @@
+# =============================================================================
+# OncoIDT cert-manager Configuration
+#
+# Development: Self-signed ClusterIssuer
+# Production:  Uncomment the Let's Encrypt issuer section below
+#
+# Prerequisites:
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Self-signed ClusterIssuer (development)
+# ---------------------------------------------------------------------------
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: oncoidt-selfsigned
+spec:
+  selfSigned: {}
+---
+# Bootstrap CA certificate using self-signed issuer
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: oncoidt-ca
+  namespace: oncoidt
+spec:
+  isCA: true
+  commonName: oncoidt-dev-ca
+  secretName: oncoidt-ca-tls
+  privateKey:
+    algorithm: RSA
+    size: 4096
+  issuerRef:
+    name: oncoidt-selfsigned
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# CA-backed ClusterIssuer for signing service certs
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: oncoidt-ca-issuer
+spec:
+  ca:
+    secretName: oncoidt-ca-tls
+---
+# ---------------------------------------------------------------------------
+# Per-service Certificate resources
+# ---------------------------------------------------------------------------
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: api-gateway-tls
+  namespace: oncoidt
+spec:
+  secretName: api-gateway-tls
+  issuerRef:
+    name: oncoidt-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - api-gateway
+    - api-gateway.oncoidt
+    - api-gateway.oncoidt.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ingestion-service-tls
+  namespace: oncoidt
+spec:
+  secretName: ingestion-service-tls
+  issuerRef:
+    name: oncoidt-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - ingestion-service
+    - ingestion-service.oncoidt
+    - ingestion-service.oncoidt.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: graph-service-tls
+  namespace: oncoidt
+spec:
+  secretName: graph-service-tls
+  issuerRef:
+    name: oncoidt-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - graph-service
+    - graph-service.oncoidt
+    - graph-service.oncoidt.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: inference-service-tls
+  namespace: oncoidt
+spec:
+  secretName: inference-service-tls
+  issuerRef:
+    name: oncoidt-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - inference-service
+    - inference-service.oncoidt
+    - inference-service.oncoidt.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: reasoner-service-tls
+  namespace: oncoidt
+spec:
+  secretName: reasoner-service-tls
+  issuerRef:
+    name: oncoidt-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - reasoner-service
+    - reasoner-service.oncoidt
+    - reasoner-service.oncoidt.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: alert-service-tls
+  namespace: oncoidt
+spec:
+  secretName: alert-service-tls
+  issuerRef:
+    name: oncoidt-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - alert-service
+    - alert-service.oncoidt
+    - alert-service.oncoidt.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: explainability-service-tls
+  namespace: oncoidt
+spec:
+  secretName: explainability-service-tls
+  issuerRef:
+    name: oncoidt-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - explainability-service
+    - explainability-service.oncoidt
+    - explainability-service.oncoidt.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: simulation-service-tls
+  namespace: oncoidt
+spec:
+  secretName: simulation-service-tls
+  issuerRef:
+    name: oncoidt-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - simulation-service
+    - simulation-service.oncoidt
+    - simulation-service.oncoidt.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: training-service-tls
+  namespace: oncoidt
+spec:
+  secretName: training-service-tls
+  issuerRef:
+    name: oncoidt-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - training-service
+    - training-service.oncoidt
+    - training-service.oncoidt.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: feature-store-service-tls
+  namespace: oncoidt
+spec:
+  secretName: feature-store-service-tls
+  issuerRef:
+    name: oncoidt-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - feature-store-service
+    - feature-store-service.oncoidt
+    - feature-store-service.oncoidt.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: websocket-hub-tls
+  namespace: oncoidt
+spec:
+  secretName: websocket-hub-tls
+  issuerRef:
+    name: oncoidt-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - websocket-hub
+    - websocket-hub.oncoidt
+    - websocket-hub.oncoidt.svc.cluster.local
+
+# =============================================================================
+# PRODUCTION SETUP — Let's Encrypt
+# =============================================================================
+# Uncomment and configure the following for production use with Let's Encrypt.
+# Replace <your-email> with a valid email address for ACME notifications.
+#
+# ---
+# apiVersion: cert-manager.io/v1
+# kind: ClusterIssuer
+# metadata:
+#   name: letsencrypt-prod
+# spec:
+#   acme:
+#     server: https://acme-v02.api.letsencrypt.org/directory
+#     email: <your-email>
+#     privateKeySecretRef:
+#       name: letsencrypt-prod-account-key
+#     solvers:
+#       - http01:
+#           ingress:
+#             class: nginx
+#
+# Then update each Certificate's issuerRef to:
+#   issuerRef:
+#     name: letsencrypt-prod
+#     kind: ClusterIssuer
+#
+# And add your public DNS names to the dnsNames list.
+# =============================================================================

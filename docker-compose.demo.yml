@@ -1,0 +1,85 @@
+# =============================================================================
+# OncoIDT — DEMO / LIGHTWEIGHT compose
+# Only 3 services: postgres, redis, and the demo API
+# Use this instead of docker-compose.yml when you don't have enough RAM
+# or are running in GitHub Codespaces.
+#
+# Usage:
+#   docker compose -f docker-compose.demo.yml up
+# =============================================================================
+
+networks:
+  oncoidt-demo:
+    driver: bridge
+
+volumes:
+  postgres_demo_data:
+  redis_demo_data:
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL (lightweight — no TimescaleDB extension needed for demo)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: oncoidt-demo-postgres
+    restart: unless-stopped
+    networks:
+      - oncoidt-demo
+    environment:
+      POSTGRES_DB: oncoidt
+      POSTGRES_USER: oncoidt
+      POSTGRES_PASSWORD: oncoidt_secret
+    volumes:
+      - postgres_demo_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oncoidt -d oncoidt"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # Redis
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: oncoidt-demo-redis
+    restart: unless-stopped
+    networks:
+      - oncoidt-demo
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_demo_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # Demo API — single Python container, no DB required
+  # Serves all synthetic patient data the frontend needs
+  # ---------------------------------------------------------------------------
+  demo-api:
+    image: python:3.11-slim
+    container_name: oncoidt-demo-api
+    restart: unless-stopped
+    networks:
+      - oncoidt-demo
+    working_dir: /app
+    volumes:
+      - ./demo_api.py:/app/demo_api.py:ro
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "pip install --quiet fastapi uvicorn && uvicorn demo_api:app --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5

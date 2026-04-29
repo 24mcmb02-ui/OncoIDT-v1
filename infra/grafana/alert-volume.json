@@ -1,0 +1,65 @@
+{
+  "uid": "alert-volume",
+  "title": "Alert Volume",
+  "schemaVersion": 38,
+  "version": 1,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "tags": ["oncoidt", "alerts"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "barchart",
+      "title": "Alerts by Priority",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (priority) (increase(onco_alert_generated_total[1h]))",
+          "legendFormat": "{{priority}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "xField": "priority",
+        "orientation": "auto",
+        "groupWidth": 0.7,
+        "barWidth": 0.97
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Alert-to-Action Latency",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"alert-service\"}[5m])) by (le))",
+          "legendFormat": "p95 Latency",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Operational Error Rate Alerts",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (service) (increase(onco_alert_generated_total{alert_type=\"operational\"}[5m]))",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      }
+    }
+  ]
+}

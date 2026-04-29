@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graph-service
+  namespace: oncoidt
+  labels:
+    app: graph-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: graph-service
+  template:
+    metadata:
+      labels:
+        app: graph-service
+    spec:
+      containers:
+        - name: graph-service
+          image: oncoidt/graph-service:latest
+          ports:
+            - containerPort: 8002
+          env:
+            - name: SERVICE_NAME
+              value: graph-service
+          envFrom:
+            - configMapRef:
+                name: oncoidt-config
+            - secretRef:
+                name: oncoidt-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8002
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: graph-service
+  namespace: oncoidt
+spec:
+  type: ClusterIP
+  selector:
+    app: graph-service
+  ports:
+    - port: 8002
+      targetPort: 8002
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: graph-service
+  namespace: oncoidt
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: graph-service
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

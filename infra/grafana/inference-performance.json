@@ -1,0 +1,87 @@
+{
+  "uid": "inference-perf",
+  "title": "Inference Performance",
+  "schemaVersion": 38,
+  "version": 1,
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "15s",
+  "tags": ["oncoidt", "inference"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Request Latency p50/p95/p99",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"inference-service\"}[5m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"inference-service\"}[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"inference-service\"}[5m])) by (le))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Error Rate",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=\"inference-service\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"inference-service\"}[5m]))",
+          "legendFormat": "Error Rate",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit" }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Throughput (req/s)",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=\"inference-service\"}[5m]))",
+          "legendFormat": "Requests/s",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      }
+    },
+    {
+      "id": 4,
+      "type": "heatmap",
+      "title": "Inference Latency Histogram",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(onco_inference_latency_seconds_bucket[5m])) by (le)",
+          "legendFormat": "{{le}}",
+          "refId": "A",
+          "format": "heatmap"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+Model,NRI,NRI (Events),NRI (Non-Events),IDI,ΔAUROC vs NEWS2,DeLong p-value
+NeuralCDE+Graph,1.026,0.767,0.259,0.192,0.021,0.0000
+NeuralCDE,1.004,0.62,0.385,0.186,0.02,0.0000
+LSTMBaseline,0.764,0.546,0.218,0.151,0.02,0.0000
+XGBoostBaseline,0.634,0.325,0.309,0.106,0.018,0.0003

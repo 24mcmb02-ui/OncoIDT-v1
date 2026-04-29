@@ -1,0 +1,101 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: oncoidt
+    environment: development
+
+# Alertmanager configuration (optional — wire up if Alertmanager is deployed)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # -------------------------------------------------------------------------
+  # Infrastructure services
+  # -------------------------------------------------------------------------
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+    metrics_path: /metrics
+
+  - job_name: redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+    metrics_path: /metrics
+
+  - job_name: neo4j
+    static_configs:
+      - targets: ["neo4j:2004"]
+    metrics_path: /metrics
+
+  - job_name: mlflow
+    static_configs:
+      - targets: ["mlflow:5000"]
+    metrics_path: /metrics
+
+  # -------------------------------------------------------------------------
+  # OncoIDT application services
+  # -------------------------------------------------------------------------
+  - job_name: api-gateway
+    static_configs:
+      - targets: ["api-gateway:8000"]
+    metrics_path: /metrics
+
+  - job_name: ingestion-service
+    static_configs:
+      - targets: ["ingestion-service:8001"]
+    metrics_path: /metrics
+
+  - job_name: graph-service
+    static_configs:
+      - targets: ["graph-service:8002"]
+    metrics_path: /metrics
+
+  - job_name: inference-service
+    static_configs:
+      - targets: ["inference-service:8003"]
+    metrics_path: /metrics
+
+  - job_name: reasoner-service
+    static_configs:
+      - targets: ["reasoner-service:8004"]
+    metrics_path: /metrics
+
+  - job_name: alert-service
+    static_configs:
+      - targets: ["alert-service:8005"]
+    metrics_path: /metrics
+
+  - job_name: explainability-service
+    static_configs:
+      - targets: ["explainability-service:8006"]
+    metrics_path: /metrics
+
+  - job_name: simulation-service
+    static_configs:
+      - targets: ["simulation-service:8007"]
+    metrics_path: /metrics
+
+  - job_name: training-service
+    static_configs:
+      - targets: ["training-service:8008"]
+    metrics_path: /metrics
+
+  - job_name: feature-store-service
+    static_configs:
+      - targets: ["feature-store-service:8009"]
+    metrics_path: /metrics
+
+  - job_name: websocket-hub
+    static_configs:
+      - targets: ["websocket-hub:8010"]
+    metrics_path: /metrics
+
+  # -------------------------------------------------------------------------
+  # Prometheus self-scrape
+  # -------------------------------------------------------------------------
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

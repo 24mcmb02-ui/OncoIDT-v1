@@ -1,0 +1,222 @@
+# =============================================================================
+# OncoIDT Stateful Services — PostgreSQL, Redis, Neo4j
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# PostgreSQL StatefulSet
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: oncoidt
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: timescaledb/timescaledb:latest-pg16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: oncoidt
+            - name: POSTGRES_USER
+              value: oncoidt
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: oncoidt-secrets
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "oncoidt", "-d", "oncoidt"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: oncoidt
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+# ---------------------------------------------------------------------------
+# Redis StatefulSet
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: oncoidt
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          command:
+            - redis-server
+            - --appendonly
+            - "yes"
+            - --maxmemory
+            - 512mb
+            - --maxmemory-policy
+            - allkeys-lru
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: oncoidt
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+# ---------------------------------------------------------------------------
+# Neo4j StatefulSet
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: neo4j
+  namespace: oncoidt
+spec:
+  serviceName: neo4j
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neo4j
+  template:
+    metadata:
+      labels:
+        app: neo4j
+    spec:
+      containers:
+        - name: neo4j
+          image: neo4j:5-community
+          ports:
+            - containerPort: 7474
+              name: http
+            - containerPort: 7687
+              name: bolt
+          env:
+            - name: NEO4J_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: oncoidt-secrets
+                  key: NEO4J_PASSWORD
+            - name: NEO4J_PLUGINS
+              value: '["apoc", "graph-data-science"]'
+            - name: NEO4J_dbms_security_procedures_unrestricted
+              value: "apoc.*,gds.*"
+          volumeMounts:
+            - name: neo4j-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: 2000m
+              memory: 8Gi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 7474
+            initialDelaySeconds: 60
+            periodSeconds: 20
+  volumeClaimTemplates:
+    - metadata:
+        name: neo4j-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neo4j
+  namespace: oncoidt
+spec:
+  type: ClusterIP
+  selector:
+    app: neo4j
+  ports:
+    - port: 7474
+      targetPort: 7474
+      name: http
+    - port: 7687
+      targetPort: 7687
+      name: bolt

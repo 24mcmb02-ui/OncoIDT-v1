@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: training-service
+  namespace: oncoidt
+  labels:
+    app: training-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: training-service
+  template:
+    metadata:
+      labels:
+        app: training-service
+    spec:
+      containers:
+        - name: training-service
+          image: oncoidt/training-service:latest
+          ports:
+            - containerPort: 8008
+          env:
+            - name: SERVICE_NAME
+              value: training-service
+          envFrom:
+            - configMapRef:
+                name: oncoidt-config
+            - secretRef:
+                name: oncoidt-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8008
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8008
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: training-service
+  namespace: oncoidt
+spec:
+  type: ClusterIP
+  selector:
+    app: training-service
+  ports:
+    - port: 8008
+      targetPort: 8008
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: training-service
+  namespace: oncoidt
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: training-service
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

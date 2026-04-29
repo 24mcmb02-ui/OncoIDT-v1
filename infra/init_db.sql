@@ -77,8 +77,7 @@ CREATE TABLE IF NOT EXISTS feature_snapshots (
     patient_id      UUID        NOT NULL,
     feature_version TEXT        NOT NULL,
     timestamp       TIMESTAMPTZ NOT NULL,
-    features        JSONB       NOT NULL,
-    PRIMARY KEY (snapshot_id)
+    features        JSONB       NOT NULL
 );
 
 SELECT create_hypertable(
@@ -87,6 +86,9 @@ SELECT create_hypertable(
     chunk_time_interval => INTERVAL '1 week',
     if_not_exists => TRUE
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_feature_snapshots_pk
+    ON feature_snapshots (snapshot_id, timestamp);
 
 CREATE INDEX IF NOT EXISTS idx_feature_snapshots_patient_time
     ON feature_snapshots (patient_id, timestamp DESC);
@@ -295,7 +297,7 @@ SELECT
     count(*)                                        AS observation_count
 FROM clinical_events
 WHERE record_type = 'vital'
-GROUP BY patient_id, bucket
+GROUP BY patient_id, time_bucket('1 hour', timestamp_utc)
 WITH NO DATA;
 
 SELECT add_continuous_aggregate_policy(

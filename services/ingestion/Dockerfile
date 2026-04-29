@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy shared and service code
 COPY shared/ /app/shared/
 COPY services/ingestion/ /app/services/ingestion/
-COPY services/__init__.py* /app/services/ 2>/dev/null || true
+COPY services/__init__.py /app/services/__init__.py
 
 # Install Python dependencies
 RUN pip install --no-cache-dir \

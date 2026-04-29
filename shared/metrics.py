@@ -63,11 +63,21 @@ def setup_metrics(app: FastAPI, service_name: str) -> ServiceMetrics:
 
     - Mounts prometheus_fastapi_instrumentator on /metrics
     - Registers custom OncoIDT metrics as singletons
+    - Registers error-tracking middleware for the error rate monitor
 
     Falls back gracefully if prometheus_client or
     prometheus_fastapi_instrumentator are not installed.
     """
     metrics = ServiceMetrics()
+
+    # --- Error tracking middleware (must be registered before app starts) ----
+    @app.middleware("http")
+    async def _error_tracking_middleware(request: Request, call_next) -> Response:  # type: ignore[type-arg]
+        response = await call_next(request)
+        now = datetime.now(timezone.utc).timestamp()
+        is_error = response.status_code >= 500
+        _error_window.append((now, is_error))
+        return response
 
     # --- HTTP instrumentation via prometheus_fastapi_instrumentator ----------
     try:
@@ -154,24 +164,15 @@ async def start_error_rate_monitor(
     redis_url: str,
 ) -> asyncio.Task:  # type: ignore[type-arg]
     """
-    Register a middleware that tracks request/error counts in a rolling
-    5-minute window, then start a background task that publishes an
-    operational alert to Redis if error rate > 5% (with > 10 requests).
+    Start a background task that publishes an operational alert to Redis
+    if error rate > 5% (with > 10 requests) in a rolling 5-minute window.
+
+    NOTE: The error-tracking middleware must be registered at app creation
+    time via setup_metrics(). This function only starts the monitor task.
 
     Returns the background asyncio.Task so it can be cancelled on shutdown.
     """
     global _error_monitor_task
-
-    # --- Middleware ----------------------------------------------------------
-    @app.middleware("http")
-    async def _error_tracking_middleware(request: Request, call_next) -> Response:  # type: ignore[type-arg]
-        response = await call_next(request)
-        now = datetime.now(timezone.utc).timestamp()
-        is_error = response.status_code >= 500
-        _error_window.append((now, is_error))
-        return response
-
-    # --- Background monitor task --------------------------------------------
     async def _monitor_loop() -> None:
         try:
             import redis.asyncio as aioredis

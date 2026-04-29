@@ -122,7 +122,9 @@ services:
   # 4. MLflow
   # ---------------------------------------------------------------------------
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.13.0
+    build:
+      context: .
+      dockerfile: services/mlflow/Dockerfile
     container_name: oncoidt-mlflow
     restart: unless-stopped
     networks:
@@ -148,7 +150,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
-      start_period: 20s
+      start_period: 60s
 
   # ---------------------------------------------------------------------------
   # 5. Ingestion Service (port 8001)

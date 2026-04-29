@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir \
     sqlalchemy[asyncio]>=2.0.0 \
     asyncpg>=0.29.0 \
     redis[hiredis]>=5.0.0 \
+    pyjwt>=2.8.0 \
     numpy>=1.26.0 \
     prometheus-fastapi-instrumentator>=6.1.0 \
     prometheus-client>=0.19.0

@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir \
     asyncpg>=0.29.0 \
     redis[hiredis]>=5.0.0 \
     httpx>=0.27.0 \
+    pyjwt>=2.8.0 \
     numpy>=1.26.0 \
     prometheus-fastapi-instrumentator>=6.1.0 \
     prometheus-client>=0.19.0

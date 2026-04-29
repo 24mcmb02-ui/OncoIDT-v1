@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir \
     asyncpg>=0.29.0 \
     redis[hiredis]>=5.0.0 \
     httpx>=0.27.0 \
+    pyjwt>=2.8.0 \
     apscheduler>=3.10.0 \
     mlflow>=2.13.0 \
     numpy>=1.26.0 \

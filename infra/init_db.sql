@@ -208,14 +208,18 @@ CREATE INDEX IF NOT EXISTS idx_alert_actions_patient
 CREATE TABLE IF NOT EXISTS simulation_sessions (
     session_id          UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
     requesting_user_id  TEXT        NOT NULL,
-    patient_id          UUID        NOT NULL,
+    patient_id          UUID,
     ward_id             TEXT,
-    simulation_type     TEXT        NOT NULL    DEFAULT 'patient',  -- patient | ward
-    input_snapshot      JSONB       NOT NULL,
-    interventions       JSONB       NOT NULL,
-    horizons            INT[]       NOT NULL,
+    simulation_type     TEXT        NOT NULL    DEFAULT 'patient',
+    input_snapshot      JSONB,
+    input_parameters    JSONB,
+    interventions       JSONB       NOT NULL    DEFAULT '[]',
+    horizons            INT[]       NOT NULL    DEFAULT '{6,12,24,48}',
+    output              JSONB,
     results             JSONB,
-    status              TEXT        NOT NULL    DEFAULT 'pending',  -- pending | running | completed | failed
+    truncated           BOOLEAN     NOT NULL    DEFAULT FALSE,
+    counterfactual      BOOLEAN     NOT NULL    DEFAULT TRUE,
+    status              TEXT        NOT NULL    DEFAULT 'pending',
     error_message       TEXT,
     created_at          TIMESTAMPTZ NOT NULL    DEFAULT NOW(),
     completed_at        TIMESTAMPTZ
@@ -262,21 +266,72 @@ CREATE INDEX IF NOT EXISTS idx_graph_snapshots_ward_time
     ON graph_snapshots (ward_id, snapshot_timestamp DESC);
 
 -- =============================================================================
--- alert_performance_log
+-- alerts
+-- Active alert records managed by the alert service.
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS alerts (
+    alert_id            UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+    patient_id          UUID,
+    ward_id             TEXT,
+    alert_type          TEXT        NOT NULL,
+    priority            TEXT        NOT NULL,
+    score               FLOAT,
+    score_delta         FLOAT,
+    message             TEXT        NOT NULL,
+    escalation_count    INT         NOT NULL    DEFAULT 0,
+    acknowledged        BOOLEAN     NOT NULL    DEFAULT FALSE,
+    snoozed_until       TIMESTAMPTZ,
+    generated_at        TIMESTAMPTZ NOT NULL    DEFAULT NOW(),
+    top_features        JSONB       NOT NULL    DEFAULT '[]'
+);
+
+CREATE INDEX IF NOT EXISTS idx_alerts_ward_time
+    ON alerts (ward_id, generated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_alerts_patient_time
+    ON alerts (patient_id, generated_at DESC);
+
+-- =============================================================================
+-- explanations
+-- SHAP explanation records per patient score update.
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS explanations (
+    explanation_id          UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+    patient_id              UUID        NOT NULL,
+    score_type              TEXT        NOT NULL,
+    forecast_horizon_hours  INT         NOT NULL,
+    model_version           TEXT        NOT NULL,
+    shap_values             JSONB       NOT NULL,
+    feature_names           JSONB       NOT NULL,
+    top_features            JSONB       NOT NULL,
+    is_rule_driven          BOOLEAN     NOT NULL    DEFAULT FALSE,
+    rule_ids                JSONB       NOT NULL    DEFAULT '[]',
+    computed_at             TIMESTAMPTZ NOT NULL    DEFAULT NOW(),
+    UNIQUE (patient_id, score_type, forecast_horizon_hours, computed_at)
+);
+
+CREATE INDEX IF NOT EXISTS idx_explanations_patient_time
+    ON explanations (patient_id, computed_at DESC);
+
+
 -- Tracks alert-to-action latency and volume for quality improvement.
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS alert_performance_log (
     log_id              UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
     alert_id            UUID        NOT NULL,
-    patient_id          UUID        NOT NULL,
-    alert_type          TEXT        NOT NULL,
-    priority            TEXT        NOT NULL,
+    patient_id          UUID,
+    alert_type          TEXT,
+    priority            TEXT,
+    action_type         TEXT,
     generated_at        TIMESTAMPTZ NOT NULL,
+    action_at           TIMESTAMPTZ,
+    latency_seconds     FLOAT,
+    shift_label         TEXT,
     acknowledged_at     TIMESTAMPTZ,
     action_latency_s    FLOAT,
-    clinician_feedback  TEXT,       -- false_positive | true_positive | not_assessed
+    clinician_feedback  TEXT,
     shift_id            TEXT,
-    ward_id             TEXT        NOT NULL
+    ward_id             TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_alert_perf_ward_time

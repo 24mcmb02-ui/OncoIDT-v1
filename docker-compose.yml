@@ -47,7 +47,7 @@ services:
   # 1. PostgreSQL + TimescaleDB
   # ---------------------------------------------------------------------------
   postgres:
-    image: timescale/timescaledb:latest-pg16
+    image: timescale/timescaledb:2.15.3-pg16
     container_name: oncoidt-postgres
     restart: unless-stopped
     networks:
@@ -65,7 +65,8 @@ services:
       test: ["CMD-SHELL", "pg_isready -U oncoidt -d oncoidt"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 15
+      start_period: 30s
 
   # ---------------------------------------------------------------------------
   # 2. Neo4j

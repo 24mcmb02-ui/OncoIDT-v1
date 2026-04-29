@@ -34,7 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_clinical_events_patient_time
     ON clinical_events (patient_id, timestamp_utc DESC);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clinical_events_dedup
-    ON clinical_events (dedup_hash);
+    ON clinical_events (dedup_hash, timestamp_utc);
 
 -- =============================================================================
 -- risk_scores  (hypertable, 1-week chunks)
